@@ -325,6 +325,9 @@ function RulesStep({ s, setS }: { s: SetupData; setS: (s: SetupData) => void }) 
           hint={s.team[0]?.github ? `Mentions @${s.team[0].github} on the team board, so the GitHub app on your phone buzzes. Only for real problems, plus once when the run is finished.` : "Add your GitHub username in the Team step (first teammate) so alerts can reach you."}
         />
       </div>
+      <Field label="When a task fails, let the agents retry it" hint="Each retry gets the reason it failed (failed checks or the reviewer's notes). You only step in if every try fails.">
+        <Segmented value={String(s.rules.autoRetry ?? 2)} onChange={(v) => r("autoRetry", Number(v))} options={[["0", "Never"], ["1", "Once"], ["2", "Twice"], ["3", "3 times"]]} />
+      </Field>
       <Field label="Stop starting new work before the deadline" hint={s.event.deadline ? `deadline ${s.event.deadline.replace("T", " ")}` : "set a deadline in step 1"}>
         <Segmented value={String(s.rules.stopBefore ?? 120)} onChange={(v) => r("stopBefore", Number(v))} options={[["60", "1 hour"], ["120", "2 hours"], ["180", "3 hours"], ["0", "Never"]]} />
       </Field>

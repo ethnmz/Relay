@@ -17,7 +17,7 @@ export interface SetupData {
   event: { name: string; track: string; deadline: string; links: string };
   idea: { pitch: string; problem: string; demo: string; must: string; nice: string; stack: string; rules: string };
   team: Member[];
-  rules: { perComputer: number; usageCap: number; review: boolean; stealing: boolean; contractsOwner: string; check: string; alerts: boolean; stopBefore: number };
+  rules: { perComputer: number; usageCap: number; review: boolean; stealing: boolean; contractsOwner: string; check: string; alerts: boolean; stopBefore: number; autoRetry?: number };
 }
 export interface AppState {
   project: { path: string; name: string; hasSetup: boolean; tasks: number; hasCommits: boolean; unshared: number } | null;
@@ -184,5 +184,5 @@ export const EMPTY_SETUP: SetupData = {
   event: { name: "", track: "", deadline: "", links: "" },
   idea: { pitch: "", problem: "", demo: "", must: "", nice: "", stack: "", rules: "" },
   team: [],
-  rules: { perComputer: 2, usageCap: 25, review: true, stealing: true, contractsOwner: "", check: "", alerts: true, stopBefore: 120 },
+  rules: { perComputer: 2, usageCap: 25, review: true, stealing: true, contractsOwner: "", check: "", alerts: true, stopBefore: 120, autoRetry: 2 },
 };

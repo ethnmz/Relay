@@ -173,3 +173,37 @@ describe("win the hackathon", () => {
   }, 90_000);
 
 });
+
+describe("automatic retries", () => {
+  it("a set-aside task is retried by the agents themselves, and its dependents still get built", async () => {
+    const team = makeTeam({
+      nodes: [NODES[0]],
+      config: { auto_retry: 2 },
+      tasks: [
+        { id: "HARD", title: "Rejected by the reviewer", lane: "frontend", lease: ["web/hard/**"], fake: { review: "changes", writes: { "web/hard/a.txt": "a" } } },
+        { id: "AFTER", title: "Needs HARD", lane: "frontend", depends_on: ["HARD"], lease: ["web/after/**"], fake: { writes: { "web/after/a.txt": "b" } } },
+      ],
+    });
+    const d = new RelayDaemon({ root: team.clones.ethan, node: "ethan", loopMs: 100 });
+    await d.start();
+    const board = readFileSync(team.board, "utf8");
+    expect(board).toContain("Parked HARD");
+    expect(board).toContain("Retrying HARD automatically as HARD-r2");
+    const tree = team.git("ls-tree", "-r", "--name-only", `relay/${RUN}`);
+    expect(tree).toContain("web/hard/a.txt");
+    expect(tree).toContain("web/after/a.txt");
+    expect(d.tasks.find((t) => t.id === "HARD-r2")!.brief).toContain("What to do differently");
+  }, 60_000);
+
+  it("stops retrying after the limit, so a hopeless task waits for a person", async () => {
+    const team = makeTeam({
+      nodes: [NODES[0]],
+      config: { auto_retry: 2 },
+      tasks: [{ id: "NOPE", title: "Never passes", lane: "frontend", lease: ["web/nope/**"], acceptance: ["false"], fake: { writes: { "web/nope/a.txt": "a" } } }],
+    });
+    const d = new RelayDaemon({ root: team.clones.ethan, node: "ethan", loopMs: 100 });
+    await d.start();
+    expect(d.tasks.map((t) => t.id).sort()).toEqual(["NOPE", "NOPE-r2", "NOPE-r3"]);
+    for (const id of ["NOPE", "NOPE-r2", "NOPE-r3"]) expect(d.states.get(id)?.state.status).toBe("parked");
+  }, 60_000);
+});

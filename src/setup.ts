@@ -50,6 +50,7 @@ export const Setup = z.object({
       check: z.string().default(""), // how we know the build works; planner suggests one if empty
       alerts: z.boolean().default(true), // @mention the lead on GitHub for real problems
       stopBefore: z.number().min(0).default(120), // minutes before the deadline to stop starting new work
+      autoRetry: z.number().int().min(0).max(5).default(2), // set-aside tasks the agents retry by themselves
     })
     .prefault({}),
 });
@@ -141,6 +142,7 @@ export function configYaml(s: Setup, root: string, existing?: Partial<RelayConfi
     auth: existing?.auth ?? "subscription",
     ...(s.event.deadline ? { deadline: s.event.deadline } : {}),
     stop_before_minutes: s.rules.stopBefore,
+    auto_retry: s.rules.autoRetry ?? 2,
     alerts: { enabled: s.rules.alerts, ...(s.team[0]?.github ? { mention: s.team[0].github } : {}), finished: true },
     adapter: existing?.adapter ?? "claude",
   };

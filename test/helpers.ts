@@ -39,6 +39,7 @@ export function makeTeam(opts: { tasks: unknown[]; config?: Record<string, unkno
     nodes,
     authorize: { board_posts: true, merge_to_run_branch: true, work_stealing: true, contract_changes: true, decide_with_assumptions: true },
     check: "test -f README.md",
+    auto_retry: 0, // most tests check one attempt; the auto-retry test turns it on
     concurrency: 2,
     adapter: "fake",
     poll_seconds: 0.2,

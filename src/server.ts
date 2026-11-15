@@ -598,15 +598,8 @@ export function serve(o: ServeOpts) {
         need(orig, "No such task.");
         const st = dm!.states.get(orig!.id)?.state;
         need(st?.status === "parked", "Only set-aside tasks can be retried.");
-        const base = orig!.retry_of ?? orig!.id;
-        let n = 2;
-        while (dm!.tasks.some((t) => t.id === `${base}-r${n}`)) n++;
-        const id = `${base}-r${n}`;
-        const hint = String(b.hint ?? "").trim();
-        const kept = `relay-work/${dm!.runId}/${orig!.id}-a${st!.attempt}`;
-        const brief = `${orig!.brief || orig!.title}\n\n## This is a retry\nThe previous attempt (${orig!.id}) was set aside: ${st!.note ?? "no reason recorded"}\nIts work is kept on the branch \`${kept}\` if it helps (read it with \`git show ${kept}:<path>\` or \`git diff HEAD ${kept}\`).${hint ? `\n\n## Hint from the team\n${hint}` : ""}`;
-        const { fake, ...rest } = orig!;
-        await dm!.addDynamicTask({ ...rest, id, retry_of: base, brief, ...(fake ? { fake: { ...fake, fail: false, review: "approve", stuck: false } } : {}) }, `Retrying ${orig!.id} as ${id}${hint ? " with a hint from the team" : ""}.`);
+        const id = await dm!.queueRetry(orig!, String(b.hint ?? "").trim(), false);
+        need(id, "Could not queue the retry (another computer may have just added it). Refresh and try again.");
         return json(res, 200, { ok: true, id });
       }
       if (route === "POST /api/submission") {

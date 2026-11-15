@@ -479,6 +479,24 @@ export class RelayDaemon {
     return undefined;
   }
 
+  /** Queue a fresh attempt at a set-aside task as a new task <original>-rN. Returns its id. */
+  async queueRetry(orig: Task, hint: string, auto: boolean): Promise<string | null> {
+    const st = this.states.get(orig.id)?.state;
+    const base = orig.retry_of ?? orig.id;
+    let n = 2;
+    while (this.tasks.some((t) => t.id === `${base}-r${n}`)) n++;
+    const id = `${base}-r${n}`;
+    const kept = `relay-work/${this.runId}/${orig.id}-a${st?.attempt ?? 1}`;
+    const brief = `${orig.brief || orig.title}\n\n## This is a retry\nThe previous attempt (${orig.id}) was set aside: ${st?.note ?? "no reason recorded"}\nIts work is kept on the branch \`${kept}\` if it helps (read it with \`git show ${kept}:<path>\` or \`git diff HEAD ${kept}\`).${hint ? `\n\n## ${auto ? "What to do differently" : "Hint from the team"}\n${hint}` : ""}`;
+    const { fake, ...rest } = orig;
+    const before = this.dynamicTasks.size;
+    await this.addDynamicTask(
+      { ...rest, id, retry_of: base, brief, ...(fake ? { fake: { ...fake, fail: false, review: "approve", stuck: false } } : {}) },
+      auto ? `Retrying ${orig.id} automatically as ${id}.` : `Retrying ${orig.id} as ${id}${hint ? " with a hint from the team" : ""}.`,
+    );
+    return this.dynamicTasks.size > before ? id : null;
+  }
+
   async addDynamicTask(t: Task, note: string) {
     const ok = await this.remoteLock.run(() => this.claims.addTask(t));
     if (!ok) return;
@@ -1003,6 +1021,16 @@ export class RelayDaemon {
       task: t.id,
       body: { why: why.slice(0, 3000), branch: kept, cost: r.cost, lane: t.lane },
     });
+    // Try again without waiting for a person, up to auto_retry times per task.
+    const base = t.retry_of ?? t.id;
+    const tries = this.tasks.filter((x) => x.retry_of === base).length;
+    if (!this.stopped && tries < this.cfg.auto_retry) {
+      await this.queueRetry(
+        t,
+        "Fix exactly what the reason above says. If a reviewer asked for changes, make every one of them and add the tests it asked for. If checks failed, run them yourself and make them pass before you finish. Reuse the kept work where it is right.",
+        true,
+      ).catch((e) => this.ledger.add("error", { task: t.id, data: { where: "auto retry", error: String(e) } }));
+    }
   }
 
   private async maybeGate() {
