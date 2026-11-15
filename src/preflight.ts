@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, statfsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { loadConfig, loadTasks, missingAuthorizations, runBranch, runName, findNode, agentFor, KEY_ENV } from "./config.js";
+import { loadConfig, loadTasks, missingAuthorizations, runBranch, runName, findNode, agentFor, KEY_ENV, claudeModel } from "./config.js";
 import { Git } from "./git.js";
 import { run, sh, childEnv } from "./exec.js";
 import { IS_MAC, IS_WIN, OS_NAME, bashPath, powerSource, resolveCli } from "./platform.js";
@@ -152,7 +152,7 @@ export async function preflight(root: string, nodeId: string, opts: { live?: boo
         let source = "";
         for await (const m of query({
           prompt: "Reply with exactly: OK",
-          options: { maxTurns: 1, permissionMode: "dontAsk", settingSources: [], model: me.model ?? cfg.models.builder, env: childEnv({}, agentEnv) },
+          options: { maxTurns: 1, permissionMode: "dontAsk", settingSources: [], model: claudeModel(me.model ?? cfg.models.builder), env: childEnv({}, agentEnv) },
         })) {
           if (m.type === "system" && (m as { subtype?: string }).subtype === "init") source = String((m as { apiKeySource?: string }).apiKeySource ?? "");
           if (m.type === "result") ok = m.subtype === "success" && /OK/.test(m.result ?? "");
@@ -160,7 +160,7 @@ export async function preflight(root: string, nodeId: string, opts: { live?: boo
         const viaSub = source === "none" || source === "oauth";
         if (!ok) add("Claude live check", "fail", "no OK from the model: check your login and plan");
         else if (cfg.auth === "subscription" && !viaSub) add("Claude live check", "fail", `answered, but through ${source} instead of your subscription`);
-        else add("Claude live check", "pass", `answered headless via ${viaSub ? "your subscription" : source}${me.model ?? cfg.models.builder ? `, model ${me.model ?? cfg.models.builder}` : ""}`);
+        else add("Claude live check", "pass", `answered headless via ${viaSub ? "your subscription" : source}, model ${claudeModel(me.model ?? cfg.models.builder)}`);
       } catch (e) {
         add("Claude live check", "fail", String(e).slice(0, 300));
       }

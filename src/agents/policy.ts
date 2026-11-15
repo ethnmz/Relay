@@ -10,6 +10,8 @@ export interface PolicyCtx {
   cwd: string; // the task worktree; the only place writes may land
   readOnly: boolean;
   allowCommands: string[];
+  /** Exceptions inside .relay/ this role may write, e.g. the planner's .relay/tasks.yaml. */
+  relayWritable?: string[];
 }
 
 /** Tools that can only reach a human, or move the agent out of its sandbox. Also passed as disallowedTools. */
@@ -151,7 +153,8 @@ export function decide(tool: string, input: Record<string, unknown>, ctx: Policy
     if (!p) return deny("no file path given");
     const rel = relInside(ctx.cwd, p);
     if (rel === null) return deny(`writes must stay inside the task worktree (${ctx.cwd})`);
-    if (/^(\.git|\.relay)([\/\\]|$)/.test(rel)) return deny("git internals and .relay/ are managed by Relay");
+    const relPosix = rel.replace(/\\/g, "/");
+    if (/^(\.git|\.relay)([\/\\]|$)/.test(rel) && !(ctx.relayWritable ?? []).includes(relPosix)) return deny("git internals and .relay/ are managed by Relay");
     if (SECRET_PATH.test(" " + rel.replace(/\\/g, "/"))) return deny("secrets files are never written");
     return { allow: true };
   }

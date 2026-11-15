@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { decide, commandWords, neverHang, NEVER_TOOLS } from "../src/agents/policy.js";
 import { globsOverlap, leaseViolations, leasesOverlap, staticPrefix } from "../src/lease.js";
 import { pickNext, readiness, runFinished } from "../src/scheduler.js";
-import { RelayConfig, validateTasks, missingAuthorizations, runName, newRunId, DEFAULT_ALLOW, Task } from "../src/config.js";
+import { RelayConfig, validateTasks, missingAuthorizations, runName, newRunId, claudeModel, DEFAULT_ALLOW, Task } from "../src/config.js";
 import { Claims } from "../src/claims.js";
 import { Git } from "../src/git.js";
 import { run, sh } from "../src/exec.js";
@@ -35,6 +35,10 @@ describe("policy never asks", () => {
     expect(decide("Write", { file_path: "/w/T2/src/a.ts" }, ctx).allow).toBe(false);
     expect(decide("Write", { file_path: "/w/T1/../T2/a.ts" }, ctx).allow).toBe(false);
     expect(decide("Write", { file_path: "/w/T1/.git/config" }, ctx).allow).toBe(false);
+    // Only the planner may write its task list inside .relay/.
+    expect(decide("Write", { file_path: "/w/T1/.relay/tasks.yaml" }, ctx).allow).toBe(false);
+    expect(decide("Write", { file_path: "/w/T1/.relay/tasks.yaml" }, { ...ctx, relayWritable: [".relay/tasks.yaml"] }).allow).toBe(true);
+    expect(decide("Write", { file_path: "/w/T1/.relay/relay.yaml" }, { ...ctx, relayWritable: [".relay/tasks.yaml"] }).allow).toBe(false);
     expect(decide("Write", { file_path: "/w/T1/.relay/tasks.yaml" }, ctx).allow).toBe(false);
     expect(decide("Write", { file_path: "/w/T1/backend/.env" }, ctx).allow).toBe(false);
     expect(decide("Write", { file_path: "/w/T1/.env.example" }, ctx).allow).toBe(true);
@@ -168,6 +172,11 @@ describe("config", () => {
   });
   it("every authorization must be granted before a run", () => {
     expect(missingAuthorizations({ ...cfg, authorize: { ...cfg.authorize, work_stealing: false } })).toEqual(["work_stealing"]);
+  });
+  it("never runs Claude Fable", () => {
+    expect(claudeModel(undefined)).toBe("claude-sonnet-5-5");
+    expect(claudeModel("claude-fable-5-2")).toBe("claude-sonnet-5-5");
+    expect(claudeModel("claude-haiku-5-5")).toBe("claude-haiku-5-5");
   });
   it("the run comes from relay.yaml, whatever the time of day", () => {
     const shared = { ...cfg, run_id: "2026-11-11-1930" };

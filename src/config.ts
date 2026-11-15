@@ -202,6 +202,12 @@ export function runName(cfg: RelayConfig, now = new Date()): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
+/** Relay never runs Claude Fable: it uses up a plan's limit fast. Unset or Fable → Sonnet. */
+export const DEFAULT_CLAUDE_MODEL = "claude-sonnet-5-5";
+export function claudeModel(m?: string): string {
+  return m && !/fable/i.test(m) ? m : DEFAULT_CLAUDE_MODEL;
+}
+
 export const runBranch = (runId: string) => `relay/${runId}`;
 
 export function agentFor(cfg: RelayConfig, node: NodeSpec): "claude" | "codex" | "fake" {

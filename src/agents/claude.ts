@@ -9,6 +9,7 @@
 import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { childEnv } from "../exec.js";
+import { claudeModel } from "../config.js";
 import { decide, neverHang, NEVER_TOOLS } from "./policy.js";
 import type { Adapter, AgentRequest, AgentResult, RelayTools } from "./types.js";
 
@@ -42,7 +43,7 @@ export class ClaudeAdapter implements Adapter {
     let last = Date.now();
     let reason: AgentResult["reason"];
     let denials = 0;
-    const ctx = { cwd: req.cwd, readOnly: req.readOnly, allowCommands: req.allowCommands };
+    const ctx = { cwd: req.cwd, readOnly: req.readOnly, allowCommands: req.allowCommands, relayWritable: req.relayWritable };
 
     const wall = setTimeout(() => {
       reason = "timeout";
@@ -68,7 +69,7 @@ export class ClaudeAdapter implements Adapter {
         prompt: req.prompt,
         options: {
           cwd: req.cwd,
-          model: req.model,
+          model: claudeModel(req.model),
           maxTurns: req.maxTurns,
           maxBudgetUsd: req.maxBudgetUsd,
           resume: req.resume,

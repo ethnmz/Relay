@@ -8,7 +8,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { Setup, type Member } from "./setup.js";
 import { childEnv } from "./exec.js";
-import { KEY_ENV } from "./config.js";
+import { KEY_ENV, claudeModel } from "./config.js";
 
 type Section = "name" | "track" | "deadline" | "pitch" | "problem" | "demo" | "must" | "nice" | "stack" | "rules" | "team" | "agentRules" | "links";
 
@@ -224,7 +224,7 @@ ${md.slice(0, 60_000)}
     prompt,
     options: {
       maxTurns: 3,
-      model,
+      model: claudeModel(model),
       permissionMode: "dontAsk",
       settingSources: [],
       allowedTools: [],

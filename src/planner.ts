@@ -43,13 +43,14 @@ export async function plan(root: string, log: (s: string) => void = console.log,
         round === 1
           ? prompt("planner", { node_count: cfg.nodes.length, nodes })
           : `.relay/tasks.yaml is invalid:\n${errors}\nFix it (same schema) and keep everything else.`,
-      model: agent === "claude" ? cfg.models.planner : undefined,
+      model: agent === "claude" ? cfg.models.planner : undefined, // the Claude adapter maps unset or Fable to Sonnet
       removeEnv: cfg.auth === "subscription" ? KEY_ENV : [],
       maxTurns: 120,
       timeoutMs: 40 * 60_000,
       stuckMs: 10 * 60_000,
       allowCommands: cfg.allow_commands.length ? cfg.allow_commands : DEFAULT_ALLOW,
       readOnly: false,
+      relayWritable: [".relay/tasks.yaml"],
       tools,
       inbox: () => [],
       onEvent: (e) => {
@@ -61,6 +62,7 @@ export async function plan(root: string, log: (s: string) => void = console.log,
     try {
       const parsed = TaskFile.parse(YAML.parse(readFileSync(p.tasks, "utf8")));
       validateTasks(parsed.tasks);
+      if (!parsed.tasks.length) throw new Error(".relay/tasks.yaml has no tasks. Write the whole task list there (not anywhere else).");
       const lanes = new Set(cfg.nodes.flatMap((n) => n.lanes));
       const bad = parsed.tasks.filter((t) => !lanes.has(t.lane));
       if (bad.length) throw new Error(`tasks use lanes no node owns: ${bad.map((t) => `${t.id}:${t.lane}`).join(", ")}`);

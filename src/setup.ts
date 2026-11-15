@@ -165,11 +165,11 @@ export function saveSetup(root: string, s: Setup): { config: string; idea: strin
   }
   writeFileSync(setupFile(root), JSON.stringify(s, null, 2) + "\n");
   let idea = ideaMarkdown(s);
-  // Keep the team's whole brief for the planner, so nothing the form could not hold is lost.
+  // Point at the team's whole brief instead of copying it: the form fields above already hold
+  // most of it, and every agent reads idea.md on every step, so duplicates cost real usage.
   const brief = join(p.dir, "brief.md");
-  if (existsSync(brief)) {
-    const text = readFileSync(brief, "utf8").replace(/<!--[\s\S]*?-->/g, "").trim();
-    if (text) idea += `\n## The team's original brief\n\n${text.slice(0, 40_000)}\n`;
+  if (existsSync(brief) && readFileSync(brief, "utf8").trim()) {
+    idea += `\n## The team's original brief\n\nThe full brief is in \`.relay/brief.md\`. Read it only for details the sections above leave out.\n`;
   }
   writeFileSync(p.idea, idea);
   const existing = existsSync(p.config) ? (YAML.parse(readFileSync(p.config, "utf8")) as Partial<RelayConfig>) : undefined;

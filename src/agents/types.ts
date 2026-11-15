@@ -43,6 +43,8 @@ export interface AgentRequest {
   maxBudgetUsd?: number;
   allowCommands: string[];
   readOnly: boolean;
+  /** Files inside .relay/ this run may write (only the planner gets any). */
+  relayWritable?: string[];
   tools: RelayTools;
   /** Drains messages that arrived for this worker since the last call (board → worker). */
   inbox: () => string[];
