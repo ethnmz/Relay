@@ -30,9 +30,10 @@ export function dependents(tasks: Task[]): Map<string, number> {
 }
 
 /** The newest retry of each task (a parked task's dependents wait on its retry instead). */
-export function retryMap(tasks: Task[]): Map<string, string> {
-  const m = new Map<string, string>();
-  for (const t of tasks) if (t.retry_of) m.set(t.retry_of, t.id);
+/** Original task id → its retries, oldest first (every retry's retry_of is the original id). */
+export function retryMap(tasks: Task[]): Map<string, string[]> {
+  const m = new Map<string, string[]>();
+  for (const t of tasks) if (t.retry_of) m.set(t.retry_of, [...(m.get(t.retry_of) ?? []), t.id]);
   return m;
 }
 
@@ -40,10 +41,16 @@ export function readiness(tasks: Task[], states: Map<string, StateRef>, isStale:
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const out = new Map<string, Readiness>();
   const retries = retryMap(tasks);
-  // Follow a parked task to its latest retry, so its dependents are not blocked forever.
+  // A parked task stands for its retries: any retry that merged counts as the task being done
+  // (later retries that failed don't undo it); otherwise follow the newest retry.
   const effective = (id: string): string => {
-    const r = retries.get(id);
-    return r && states.get(id)?.state.status === "parked" ? effective(r) : id;
+    if (states.get(id)?.state.status !== "parked") return id;
+    const base = byId.get(id)?.retry_of ?? id;
+    const rs = retries.get(base) ?? [];
+    const merged = rs.find((r) => states.get(r)?.state.status === "done");
+    if (merged) return merged;
+    const newest = rs[rs.length - 1];
+    return newest && newest !== id ? effective(newest) : id;
   };
   const get = (id: string): Readiness => {
     if (out.has(id)) return out.get(id)!;

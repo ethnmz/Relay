@@ -120,6 +120,16 @@ describe("win the hackathon", () => {
     expect(readiness(tasks.slice(0, 2), new Map([["X", st("parked")]]), () => false).get("Y")).toBe("blocked");
   });
 
+  it("a later failed retry does not undo an earlier retry that merged", () => {
+    const tasks = [T("X"), T("Y", { depends_on: ["X"] }), T("X-r2", { retry_of: "X" }), T("X-r3", { retry_of: "X" })];
+    const both = new Map([["X", st("parked")], ["X-r2", st("done")], ["X-r3", st("parked")]]);
+    expect(readiness(tasks, both, () => false).get("Y")).toBe("ready");
+    // With no merged retry, the newest one decides.
+    const none = new Map([["X", st("parked")], ["X-r2", st("parked")]]);
+    expect(readiness(tasks, none, () => false).get("Y")).toBe("waiting");
+    expect(readiness(tasks, new Map([...none, ["X-r3", st("parked")]]), () => false).get("Y")).toBe("blocked");
+  });
+
   it("results: retry a set-aside task with a hint, start again, then draft and commit the submission", async () => {
     const team = makeTeam({
       nodes: [NODES[0]],
