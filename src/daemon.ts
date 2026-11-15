@@ -1082,8 +1082,13 @@ export class RelayDaemon {
     this.pausedUntil = Date.now() + 30 * 60_000;
     this.usage = { ...(this.usage ?? {}), status: "limited" };
     this.ledger.add("paused", { data: { reason: "auth", detail: detail.slice(0, 300) } });
-    void this.post("note", `${this.me.name}'s ${this.agentLabel()} login stopped working. Releasing running tasks to other computers; checking again every 30 minutes.`, { body: { text: "login lost" } });
-    void this.alert(`login-${this.me.id}`, `${this.me.name}'s ${this.agentLabel()} login stopped working, so that computer paused and handed its tasks to the others. Fix: on that computer run ${this.agent === "codex" ? "`codex login`" : "`claude` and type /login"}. It resumes by itself within 30 minutes.`);
+    const missing = /could not start|ENOENT|not installed/i.test(detail);
+    const problem = missing ? `${this.agentLabel()} is not installed on this computer` : `${this.agentLabel()} login stopped working`;
+    const fix = missing
+      ? this.agent === "codex" ? "`npm install -g @openai/codex`, then `codex login`" : "`npm install -g @anthropic-ai/claude-code`, then `claude` and type /login"
+      : this.agent === "codex" ? "`codex login`" : "`claude` and type /login";
+    void this.post("note", `${this.me.name}'s ${problem}. Releasing running tasks to other computers; checking again every 30 minutes.`, { body: { text: missing ? "agent missing" : "login lost" } });
+    void this.alert(`login-${this.me.id}`, `${this.me.name}'s ${problem}, so that computer paused and handed its tasks to the others. Fix: on that computer run ${fix}. It resumes by itself within 30 minutes.`);
     for (const r of this.running.values()) r.abort.abort();
   }
 

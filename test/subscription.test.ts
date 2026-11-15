@@ -70,6 +70,16 @@ describe("Codex nodes (stand-in codex binary, same flags and JSONL events)", () 
     expect(review?.data?.verdict).toBe("approve"); // VERDICT line parsed from the read-only reviewer
   }, 60_000);
 
+  it("a computer without Codex installed reports it like a lost login, so it pauses instead of failing tasks", async () => {
+    const team = makeTeam({ tasks: [], nodes: [NODES[2]] });
+    const res = await new CodexAdapter("/nonexistent/codex").run({
+      role: "builder", cwd: team.clones.akshi, system: "", prompt: "x", maxTurns: 1, timeoutMs: 20_000, stuckMs: 20_000,
+      allowCommands: [], readOnly: false, inbox: () => [], onEvent: () => {}, tools: {} as any,
+    });
+    expect(res.reason).toBe("auth");
+    expect(res.text).toContain("npm install -g @openai/codex");
+  }, 30_000);
+
   it("a Codex usage limit is reported with its reset time", async () => {
     process.env.FAKE_CODEX = JSON.stringify({ limit: true });
     const team = makeTeam({ tasks: [], nodes: [NODES[2]] });

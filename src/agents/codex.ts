@@ -200,6 +200,8 @@ export class CodexAdapter implements Adapter {
     if (existsSync(lastFile)) lastText = readFileSync(lastFile, "utf8").trim() || lastText;
 
     if (limited) return { ok: false, reason: "usage_limit", resumeAt, text: failure, costUsd: 0, sessionId, denials: 0 };
+    // A missing codex binary is like a lost login: this computer cannot work until a person fixes it.
+    if (failure.startsWith("could not start codex")) return { ok: false, reason: "auth", text: failure, costUsd: 0, sessionId, denials: 0 };
     if (code !== 0 && AUTH_RE.test(failure)) return { ok: false, reason: "auth", text: failure, costUsd: 0, sessionId, denials: 0 };
     const ok = code === 0 && !failure;
     return { ok, reason: ok ? undefined : "error", text: ok ? lastText : failure, costUsd: 0, sessionId, denials: 0 };
