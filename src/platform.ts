@@ -122,7 +122,8 @@ export function openBrowser(url: string) {
 }
 
 /** Per-user Relay settings (recent projects, which teammate this computer is). */
-export const USER_DIR = join(homedir(), ".relay");
+/** Per-user app data (settings, practice runs). RELAY_HOME moves it, e.g. for tests. */
+export const USER_DIR = process.env.RELAY_HOME ?? join(homedir(), ".relay");
 
 export function which(cmd: string): boolean {
   const r = spawnSync(IS_WIN ? "where" : "which", [cmd], { stdio: "ignore", windowsHide: true, shell: IS_WIN });
