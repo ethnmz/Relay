@@ -117,7 +117,15 @@ export async function buildReport(root: string, nodeId: string, runId?: string):
 export async function openRunPr(root: string, report: ReportData, runId?: string): Promise<string> {
   const cfg = loadConfig(root);
   const n = runId ?? runName(cfg);
-  const r = await run("gh", ["pr", "create", "--base", cfg.base_branch, "--head", runBranch(n), "--title", `Relay: run of ${n}`, "--body-file", report.file], { cwd: root, timeoutMs: 60_000 });
+  // GitHub rejects PR bodies over 65,536 characters; long runs get a trimmed body.
+  const LIMIT = 60_000;
+  let body = report.file;
+  if (report.markdown.length > LIMIT) {
+    body = `${report.file}.pr.md`;
+    const cut = report.markdown.slice(0, LIMIT);
+    writeFileSync(body, `${cut.slice(0, cut.lastIndexOf("\n"))}\n\n_Report trimmed to fit GitHub's limit. The full report is on the Results tab in Relay._\n`);
+  }
+  const r = await run("gh", ["pr", "create", "--base", cfg.base_branch, "--head", runBranch(n), "--title", `Relay: run of ${n}`, "--body-file", body], { cwd: root, timeoutMs: 60_000 });
   if (r.code !== 0) throw new Error(r.stderr.trim());
   return r.stdout.trim();
 }
