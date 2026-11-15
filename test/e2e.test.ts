@@ -126,3 +126,26 @@ describe("4-computer run with the fake adapter", () => {
     expect(board).toMatch(/stuck/);
   }, 30_000);
 });
+
+describe("checks that change tracked files (like npm install touching package-lock.json)", () => {
+  it("still merge after other computers merged first, instead of being set aside", async () => {
+    const lanes = ["frontend", "voice", "ai", "core"];
+    const tasks = Array.from({ length: 8 }, (_, i) => ({
+      id: `D${i}`,
+      title: `dirty check ${i}`,
+      lane: lanes[i % 4],
+      lease: [`d${i}/**`],
+      acceptance: [`echo dirty >> README.md && test -f d${i}/a.txt`],
+      fake: { writes: { [`d${i}/a.txt`]: String(i) }, sleep_ms: 100 },
+    }));
+    const team = makeTeam({ tasks, config: { review: { enabled: false, max_rounds: 1 } } });
+    const ds = run4(team);
+    await Promise.all(ds.map((d) => d.start()));
+    await ds[0].refreshStates();
+    const status = Object.fromEntries(tasks.map((t) => [t.id, ds[0].states.get(t.id)?.state.status]));
+    expect(Object.values(status).every((s) => s === "done")).toBe(true);
+    const tree = team.git("ls-tree", "-r", "--name-only", "relay/2026-11-11");
+    for (const t of tasks) expect(tree).toContain(`${t.id.replace("D", "d")}/a.txt`);
+    expect(team.git("show", "relay/2026-11-11:README.md").trim()).toBe("# fixture");
+  }, 90_000);
+});

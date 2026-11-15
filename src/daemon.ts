@@ -924,6 +924,10 @@ export class RelayDaemon {
         return null;
       }
       if (head !== base) {
+        // Checks may leave tracked files changed (npm install rewrites package-lock.json). Git refuses
+        // to rebase a dirty worktree, so drop anything not committed: the task's work is in HEAD.
+        await g.raw(["reset", "-q", "--hard", "HEAD"]);
+        await g.raw(["clean", "-fdq"]);
         const rb = await g.raw(["rebase", head]);
         if (rb.code !== 0) {
           // Leases make conflicts rare (only when a contract or lease request touched our files). Let a fixer resolve it.
@@ -943,12 +947,19 @@ export class RelayDaemon {
             return null;
           }
         }
+        // Never continue unless the rebase really landed on the newest run work; otherwise the lease
+        // check would see every teammate's newer files as this task's edits.
+        if ((await g.raw(["merge-base", "--is-ancestor", head, "HEAD"])).code !== 0) {
+          await g.raw(["rebase", "--abort"]);
+          await this.park(t, r, g, `could not rebase onto the newest run work: ${tail(rb.stdout + rb.stderr, 600)}`);
+          return null;
+        }
         base = head;
         r.phase = "re-checking";
         const lease = await this.enforceLease(t, g, base);
         const checks = await this.runChecks(t, g.cwd);
         if (!checks.ok || lease.length) {
-          await this.park(t, r, g, `checks failed after rebasing onto newer run work:\n${checks.output}`);
+          await this.park(t, r, g, lease.length ? `after rebasing onto newer run work, it changed files outside its lease: ${lease.join(", ").slice(0, 400)}` : `checks failed after rebasing onto newer run work:\n${checks.output}`);
           return null;
         }
         // Keep one commit per task.
