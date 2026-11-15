@@ -207,3 +207,33 @@ describe("automatic retries", () => {
     for (const id of ["NOPE", "NOPE-r2", "NOPE-r3"]) expect(d.states.get(id)?.state.status).toBe("parked");
   }, 60_000);
 });
+
+describe("no duplicate retries", () => {
+  it("does not retry a task again once an attempt merged or another retry is queued", async () => {
+    const team = makeTeam({
+      nodes: [NODES[0]],
+      tasks: [{ id: "X", title: "x", lane: "frontend", lease: ["web/x/**"], acceptance: ["false"], fake: { writes: { "web/x/a.txt": "a" } } }],
+    });
+    const d = new RelayDaemon({ root: team.clones.ethan, node: "ethan", loopMs: 100 });
+    await d.start(); // X is set aside (auto_retry is 0 in tests)
+    const x = d.tasks.find((t) => t.id === "X")!;
+    expect(await d.queueRetry(x, "first", false)).toBe("X-r2");
+    expect(await d.queueRetry(x, "second click", false)).toBeNull(); // X-r2 is still queued
+    await d.refreshStates();
+    expect(d.tasks.filter((t) => t.retry_of === "X").length).toBe(1);
+  }, 60_000);
+});
+
+describe("the run always ends", () => {
+  it("stops adding tasks at the limit, so retries can't grow forever", async () => {
+    const team = makeTeam({
+      nodes: [NODES[0]],
+      config: { auto_retry: 3, max_added_tasks: 1 },
+      tasks: [{ id: "NOPE", title: "Never passes", lane: "frontend", lease: ["web/nope/**"], acceptance: ["false"], fake: { writes: { "web/nope/a.txt": "a" } } }],
+    });
+    const d = new RelayDaemon({ root: team.clones.ethan, node: "ethan", loopMs: 100 });
+    await d.start();
+    expect(d.tasks.map((t) => t.id).sort()).toEqual(["NOPE", "NOPE-r2"]);
+    expect(readFileSync(team.board, "utf8")).toContain("beyond the plan (the limit)");
+  }, 60_000);
+});

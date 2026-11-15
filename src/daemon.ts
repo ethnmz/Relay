@@ -104,6 +104,7 @@ export class RelayDaemon {
   private answerQueue: Envelope[] = [];
   private counter = 0;
   private exitWhenDone: boolean;
+  private capNoted = false;
 
   constructor(o: DaemonOpts) {
     this.root = o.root;
@@ -453,6 +454,13 @@ export class RelayDaemon {
   private async maybeQueueContractChange(env: Envelope) {
     const lane = this.cfg.contract_lane ?? this.laneOwning(String(env.body.file ?? ""));
     if (!lane || this.responderFor(lane) !== this.me.id) return;
+    // One open change per contract file: repeated requests for the same file wait for that one.
+    const file = String(env.body.file ?? "");
+    const open = this.tasks.find((t) => t.role === "contract" && t.lease[0] === file && !["done", "parked"].includes(this.states.get(t.id)?.state.status ?? ""));
+    if (open) {
+      await this.post("note", `A change to ${file} is already queued (${open.id}); ${env.from}'s request waits for it.`, { to: `node:${env.from}`, body: { text: "contract change already queued" } });
+      return;
+    }
     const id = `CC-${this.me.id}-${Date.now().toString(36)}`;
     const t: Task = {
       id,
@@ -483,6 +491,10 @@ export class RelayDaemon {
   async queueRetry(orig: Task, hint: string, auto: boolean): Promise<string | null> {
     const st = this.states.get(orig.id)?.state;
     const base = orig.retry_of ?? orig.id;
+    // One live attempt per task: never retry once any attempt merged, or while another retry is
+    // still queued or running (several computers or people may react to the same failure).
+    const siblings = this.tasks.filter((x) => x.id === base || x.retry_of === base);
+    if (siblings.some((x) => x.id !== orig.id && this.states.get(x.id)?.state.status !== "parked")) return null;
     let n = 2;
     while (this.tasks.some((t) => t.id === `${base}-r${n}`)) n++;
     const id = `${base}-r${n}`;
@@ -497,7 +509,21 @@ export class RelayDaemon {
     return this.dynamicTasks.size > before ? id : null;
   }
 
+  /** How many tasks agents may still add in this run (retries, contract changes, gate fixes). */
+  addedTasksLeft(): number {
+    const cap = this.cfg.max_added_tasks || Math.max(20, this.baseTasks.length);
+    return cap - this.dynamicTasks.size;
+  }
+
   async addDynamicTask(t: Task, note: string) {
+    if (this.addedTasksLeft() <= 0) {
+      if (!this.capNoted) {
+        this.capNoted = true;
+        await this.post("note", `Not adding ${t.id}: this run already added ${this.dynamicTasks.size} tasks beyond the plan (the limit). Remaining failures wait for a person on the Results tab.`, { body: { text: "added-task limit" } });
+        void this.alert("added-cap", `The run reached its limit of extra tasks (retries, contract changes, fixes), so it stops adding more and will finish. Check the Results tab for what is still set aside.`);
+      }
+      return;
+    }
     const ok = await this.remoteLock.run(() => this.claims.addTask(t));
     if (!ok) return;
     this.dynamicTasks.set(t.id, t);
@@ -1024,7 +1050,8 @@ export class RelayDaemon {
     // Try again without waiting for a person, up to auto_retry times per task.
     const base = t.retry_of ?? t.id;
     const tries = this.tasks.filter((x) => x.retry_of === base).length;
-    if (!this.stopped && tries < this.cfg.auto_retry) {
+    // Helper tasks (contract changes, gate fixes) are not retried: they get queued again if still needed.
+    if (!this.stopped && tries < this.cfg.auto_retry && t.role !== "contract" && t.role !== "fixer") {
       await this.queueRetry(
         t,
         "Fix exactly what the reason above says. If a reviewer asked for changes, make every one of them and add the tests it asked for. If checks failed, run them yourself and make them pass before you finish. Reuse the kept work where it is right.",
@@ -1279,6 +1306,8 @@ export class RelayDaemon {
         title: t.title,
         lane: t.lane,
         role: t.role,
+        retry_of: t.retry_of,
+        priority: t.priority,
         depends_on: t.depends_on,
         lease: t.lease,
         readiness: r.get(t.id),

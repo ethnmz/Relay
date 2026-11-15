@@ -180,7 +180,10 @@ function Retries() {
   useEffect(() => {
     api.snapshot().then(setSnap).catch(() => {});
   }, []);
-  const parked = (snap?.tasks ?? []).filter((t) => t.readiness === "parked" && !snap!.tasks.some((x) => x.retry_of === (t.retry_of ?? t.id) && x.id !== t.id && x.readiness !== "parked"));
+  // One row per planned task, and only when every attempt at it is set aside (none merged or queued).
+  const byBase = new Map<string, typeof snap extends null ? never : NonNullable<typeof snap>["tasks"]>();
+  for (const t of snap?.tasks ?? []) byBase.set(t.retry_of ?? t.id, [...(byBase.get(t.retry_of ?? t.id) ?? []), t]);
+  const parked = [...byBase.values()].filter((g) => g.every((t) => t.readiness === "parked")).map((g) => g[g.length - 1]);
   if (!parked.length) return null;
   return (
     <Card className="space-y-3">

@@ -175,8 +175,18 @@ export function Live({ app, reload }: { app: AppState; reload: () => Promise<App
       </div>
     );
 
-  const done = snap.tasks.filter((t) => t.readiness === "done").length;
-  const parked = snap.tasks.filter((t) => t.readiness === "parked").length;
+  // Progress counts the plan's tasks: retries and helper tasks (contract changes, fixes) are
+  // attempts at planned work, not new work, so the total doesn't grow as agents retry.
+  const planned = new Map<string, TaskRow[]>();
+  for (const t of snap.tasks) {
+    if (t.role === "contract" || t.role === "fixer") continue;
+    const key = t.retry_of ?? t.id;
+    planned.set(key, [...(planned.get(key) ?? []), t]);
+  }
+  const groups = [...planned.values()];
+  const done = groups.filter((g) => g.some((t) => t.readiness === "done")).length;
+  const parked = groups.filter((g) => !g.some((t) => t.readiness === "done") && g.every((t) => t.readiness === "parked")).length;
+  const total = groups.length;
   const spent = Object.values(snap.spent).reduce((a, b) => a + b, 0);
   const statusOf = (n: NodeSpec) => {
     const evs = snap.board.filter((m) => m.env?.from === n.id && (m.env.type === "node_up" || m.env.type === "node_down"));
@@ -203,7 +213,7 @@ export function Live({ app, reload }: { app: AppState; reload: () => Promise<App
         <div>
           <div className="text-5xl font-light tabular-nums text-cream">
             {done}
-            <span className="text-2xl text-neutral-500"> / {snap.tasks.length} merged</span>
+            <span className="text-2xl text-neutral-500"> / {total} done</span>
           </div>
           <div className="text-sm text-neutral-400">
             Run {snap.runId}
@@ -213,7 +223,7 @@ export function Live({ app, reload }: { app: AppState; reload: () => Promise<App
           </div>
         </div>
         <div className="h-1 min-w-40 flex-1 overflow-hidden rounded-full bg-ink-700">
-          <div className="h-full rounded-full bg-copper transition-all" style={{ width: `${(done / Math.max(1, snap.tasks.length)) * 100}%` }} />
+          <div className="h-full rounded-full bg-copper transition-all" style={{ width: `${(done / Math.max(1, total)) * 100}%` }} />
         </div>
         <div className="relative">
           {running ? (

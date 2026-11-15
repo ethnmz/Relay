@@ -62,6 +62,9 @@ export const RelayConfig = z.object({
   // When a task is set aside, the agents retry it this many times by themselves, with the reason
   // (failed checks or the reviewer's notes) as the hint. 0 = always wait for a person.
   auto_retry: z.number().int().min(0).max(5).default(2),
+  // Hard limit on tasks the agents add during a run (retries, contract changes, gate fixes), so a
+  // run always ends. 0 = as many as the plan has tasks (at least 20).
+  max_added_tasks: z.number().int().min(0).default(0),
   review: z.object({ enabled: z.boolean().default(true), max_rounds: z.number().int().min(1).default(2) }).prefault({}),
   steal: z.object({ never_lanes: z.array(z.string()).default([]), idle_seconds: z.number().min(0).default(30) }).prefault({}),
   contracts: z.array(z.string()).default([]),

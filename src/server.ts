@@ -599,7 +599,7 @@ export function serve(o: ServeOpts) {
         const st = dm!.states.get(orig!.id)?.state;
         need(st?.status === "parked", "Only set-aside tasks can be retried.");
         const id = await dm!.queueRetry(orig!, String(b.hint ?? "").trim(), false);
-        need(id, "Could not queue the retry (another computer may have just added it). Refresh and try again.");
+        need(id, "Not retried: another attempt at this task already merged or is already queued. Refresh to see it.");
         return json(res, 200, { ok: true, id });
       }
       if (route === "POST /api/submission") {
