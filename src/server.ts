@@ -30,6 +30,8 @@ const MIME: Record<string, string> = { ".html": "text/html", ".js": "text/javasc
 // ---------- per-user settings (recent projects, auto-start) ----------
 interface UserSettings {
   recent: string[];
+  /** The project that was open when the app last ran; reopened on start. */
+  open?: string | null;
   autoStart: Record<string, boolean>;
 }
 const SETTINGS = join(USER_DIR, "settings.json");
@@ -77,8 +79,11 @@ export function serve(o: ServeOpts) {
   const settings = loadSettings();
   const remember = (dir: string) => {
     settings.recent = [dir, ...settings.recent.filter((x) => x !== dir)].slice(0, 8);
+    settings.open = dir;
     saveSettings(settings);
   };
+  // A restart keeps the project you had open.
+  if (!root && settings.open && existsSync(join(settings.open, ".git"))) root = settings.open;
   if (root) remember(root);
 
   const myNode = (): string | null => {
@@ -314,6 +319,8 @@ export function serve(o: ServeOpts) {
       if (route === "POST /api/project/close") {
         root = null;
         observer = undefined;
+        settings.open = null;
+        saveSettings(settings);
         return json(res, 200, { ok: true });
       }
       if (route === "POST /api/project/pull") {
