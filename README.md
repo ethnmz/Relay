@@ -6,6 +6,8 @@ Relay runs a hackathon team's coding agents side by side, at any time of day: in
 
 It works for any hackathon, team size (1–8) or tech stack. You describe the event and idea in a guided setup, and an AI planner turns that into contracts and small tasks for each teammate.
 
+![Relay's welcome screen](docs/screenshots/welcome.png)
+
 ## Get started (everyone, Mac or Windows)
 
 You need Node.js 20+, Git (on Windows, Git for Windows, which includes Git Bash) and the GitHub CLI signed in (`gh auth login`). Then install your agent and sign in with your plan:
@@ -34,10 +36,18 @@ Your browser opens Relay.
 6. **Your computer** (each teammate): pick who you are, see what's missing with copy-paste install commands for your OS, then run the final check (power, sleep, GitHub access, and a live call to your agent through your plan).
 7. **Start:** see who's ready. The lead can **Start the run for everyone**, and teammates can turn on *start automatically*.
 
+![The Plan step: tasks grouped by teammate, with dependencies and must or nice-to-have tags](docs/screenshots/plan.png)
+
 ## Live and Results
 
+Screenshots are from a practice run (pretend agents, no AI used).
+
 - **Live:** a live map of the team. Each teammate's agent sits around the shared run branch, and animated dots show work being merged, finished work unblocking a teammate, questions and answers, and hand-offs when a plan runs out of usage. Below the map is a plain-language "what just happened" feed and the task list.
+
+  ![The Live tab during a practice run: four teammates' agents building at once around the shared run branch](docs/screenshots/live.png)
 - **Results:** the report covers what merged, what was set aside and why, and **every decision the agents made on their own**. One button opens the pull request. Merging to `main` is always a person's call.
+
+  ![The Results tab: submission kit, a set-aside task with a hint box, and the run report](docs/screenshots/results.png)
   - **Submission kit:** your agent reads the finished code (read-only) and drafts *How to run*, a *demo script*, *what works vs. what's mocked*, and a *Devpost write-up*. Each part has a Copy button, and one click adds `SUBMISSION.md` to the pull request.
   - **Retry with a hint:** each set-aside task gets a hint box. Retry queues it as a new task (for example `A3-r2`) that sees why it failed, the kept work, and your hint.
 - **Working alongside the agents:** on the Live tab, list the folders you're editing and agents stay out of them. When a run finishes, **Start again** keeps building leftovers and retries on the same run branch.
