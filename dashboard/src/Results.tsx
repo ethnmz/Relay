@@ -60,8 +60,9 @@ export function Results() {
 }
 
 function inline(s: string): ReactNode[] {
-  return s.split(/(\*\*[^*]+\*\*|`[^`]+`|_[^_]+_)/g).map((p, i) => {
+  return s.split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*|`[^`]+`|_[^_]+_)/g).map((p, i) => {
     if (p.startsWith("**")) return <strong key={i} className="font-medium text-cream">{p.slice(2, -2)}</strong>;
+    if (p.startsWith("*") && p.endsWith("*") && p.length > 2) return <em key={i} className="text-neutral-400">{p.slice(1, -1)}</em>;
     if (p.startsWith("`")) return <code key={i} className="rounded-sm bg-ink-800 px-1 font-mono text-[12px] text-cream">{p.slice(1, -1)}</code>;
     if (p.startsWith("_") && p.endsWith("_") && p.length > 2) return <em key={i} className="text-neutral-400">{p.slice(1, -1)}</em>;
     return p;

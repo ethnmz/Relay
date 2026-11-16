@@ -42,14 +42,27 @@ export async function buildReport(root: string, nodeId: string, runId?: string):
   const spent = new Map<string, number>();
   for (const e of envs) if (typeof e.body.spent === "number") spent.set(e.from, Math.max(spent.get(e.from) ?? 0, e.body.spent as number));
   const r = readiness(tasks, states, () => false);
-  const count = (k: string) => [...r.values()].filter((x) => x === k).length;
+  // Count planned work the way the Live tab does: a task and its retries are one planned task, and
+  // helper tasks (contract changes, gate fixes) are not counted. Done if any attempt merged;
+  // otherwise the latest attempt decides (all attempts parked → parked).
+  const groups = new Map<string, Task[]>();
+  for (const t of tasks) {
+    if (t.role === "contract" || t.role === "fixer") continue;
+    const key = t.retry_of ?? t.id;
+    groups.set(key, [...(groups.get(key) ?? []), t]);
+  }
+  const planned = [...groups.values()].map((g) => (g.some((t) => r.get(t.id) === "done") ? "done" : r.get(g[g.length - 1].id)!));
+  const count = (k: string) => planned.filter((x) => x === k).length;
+  const helpers = tasks.length - [...groups.values()].reduce((a, g) => a + g.length, 0);
+  const retries = [...groups.values()].reduce((a, g) => a + g.length - 1, 0);
   const started = by("node_up").map((e) => e.at);
   const ended = by("node_down").map((e) => e.at);
   const fmt = (t?: number) => (t ? new Date(t).toLocaleString() : "?");
 
   const L: string[] = [];
   L.push(`# Relay report: ${cfg.project}, run ${n}`, "");
-  L.push(`**${count("done")}/${tasks.length} tasks merged** into \`${branch}\` · ${count("parked")} parked · ${count("blocked")} blocked by parked work · ${count("running") + count("stale")} unfinished · ${count("ready") + count("waiting")} not started`);
+  L.push(`**${count("done")}/${planned.length} tasks merged** into \`${branch}\` · ${count("parked")} parked · ${count("blocked")} blocked by parked work · ${count("running") + count("stale")} unfinished · ${count("ready") + count("waiting")} not started`);
+  if (retries || helpers) L.push(`Counts planned tasks. Also ran ${retries} retr${retries === 1 ? "y" : "ies"} and ${helpers} helper task${helpers === 1 ? "" : "s"} (contract changes, fixes).`);
   L.push(`Started ${fmt(Math.min(...started))}, last node finished ${fmt(ended.length ? Math.max(...ended) : undefined)}. Diff vs \`${cfg.base_branch}\`: ${stat || "none"}.`);
   const usageLine = `${[...spent].map(([k, v]) => `${k} $${v.toFixed(2)}`).join(", ") || "n/a"} (team $${[...spent.values()].reduce((a, b) => a + b, 0).toFixed(2)} of the $${cfg.budget.team_usd} cap)`;
   L.push(
@@ -70,12 +83,14 @@ export async function buildReport(root: string, nodeId: string, runId?: string):
     for (const e of assumptions) L.push(`| ${esc(e.task)} | ${e.from} | ${esc(e.body.decision)} | ${esc(e.body.why)} |`);
   } else L.push("(none recorded)");
 
-  const parked = tasks.filter((t) => r.get(t.id) === "parked");
+  // One line per planned task that ended set aside, using its latest attempt.
+  const groupList = [...groups.values()];
+  const parked = groupList.filter((_, i) => planned[i] === "parked").map((g) => ({ t: g[g.length - 1], tries: g.length }));
   L.push("", `## Parked tasks (${parked.length})`, "");
-  for (const t of parked) {
+  for (const { t, tries } of parked) {
     const s = states.get(t.id)!.state;
     const p = by("task_parked").filter((e) => e.task === t.id).pop();
-    L.push(`- **${t.id}** ${t.title} (lane ${t.lane}, ${s.node}, attempt ${s.attempt}): ${esc(s.note)}${p?.body.branch ? `. Work kept on \`${p.body.branch}\`` : ""}`);
+    L.push(`- **${t.id}** ${t.title} (lane ${t.lane}, ${s.node}${tries > 1 ? `, set aside after ${tries} tries` : `, attempt ${s.attempt}`}): ${esc(s.note)}${p?.body.branch ? `. Work kept on \`${p.body.branch}\`` : ""}`);
   }
   if (!parked.length) L.push("(none)");
   const blocked = tasks.filter((t) => r.get(t.id) === "blocked");

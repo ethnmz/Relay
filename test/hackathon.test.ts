@@ -7,6 +7,7 @@ import { RelayDaemon } from "../src/daemon.js";
 import { pickNext, readiness } from "../src/scheduler.js";
 import { RelayConfig, Task, loadConfig } from "../src/config.js";
 import { draftSubmission, commitSubmission } from "../src/submission.js";
+import { buildReport } from "../src/report.js";
 import { makeTeam, NODES } from "./helpers.js";
 
 const RUN = "2026-11-11";
@@ -164,6 +165,12 @@ describe("win the hackathon", () => {
     expect(tree).toContain("web/bad/a.txt");
     expect(tree).toContain("web/after/a.txt");
     server.close();
+
+    // The report counts planned tasks like the Live tab: BAD and its retry are one task.
+    const rep = await buildReport(root, "ethan", RUN);
+    const md = readFileSync(rep.file, "utf8");
+    expect(md).toContain("**3/3 tasks merged**");
+    expect(md).toContain("## Parked tasks (0)");
 
     // Submission kit (fake agent) and the human-approved commit.
     const draft = await draftSubmission(root, "ethan", RUN);
